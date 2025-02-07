@@ -6,13 +6,6 @@ local did_setup = false
 M.config = {
 	notes_dir = nil,
 	default_extension = "md",
-	template = nil,
-	date_format = "%Y-%m-%d",
-	keymaps = {
-		search = "<leader>ns",
-		create = "<leader>nc",
-		list = "<leader>nl",
-	},
 }
 
 H.default_config = vim.deepcopy(M.config)
@@ -24,11 +17,11 @@ M.setup = function(config)
 	config = H.setup_config(config)
 	H.apply_config(config)
 	H.create_user_commands()
-  H.set_keymap()
 	did_setup = true
 end
 
 M.list_notes = function()
+	H.ensure_setup()
 	if pcall(require, "fzf-lua") then
 		require("fzf-lua").files({ cwd = M.config.notes_dir })
 	else
@@ -37,6 +30,7 @@ M.list_notes = function()
 end
 
 M.search_notes = function()
+	H.ensure_setup()
 	if pcall(require, "fzf-lua") then
 		require("fzf-lua").live_grep({ cwd = M.config.notes_dir })
 	else
@@ -44,7 +38,8 @@ M.search_notes = function()
 	end
 end
 
-M.create_notes = function(opts)
+M.create_note = function(opts)
+	H.ensure_setup()
 	opts = opts or {}
 	local filename = vim.fn.input("Filename: ")
 
@@ -57,35 +52,29 @@ M.create_notes = function(opts)
 		end
 	end
 
-	local filepath = vim.fs.join(M.config.notes_dir, filename)
+	local filepath = M.config.notes_dir .. "/" .. filename
 
 	if vim.fn.filereadable(filepath) == 1 then
 		local overwrite = vim.fn.input(string.format("File '%s' exists. Overwrite? (y/N): ", filename))
 		if not overwrite:lower():match("^y") then
-			print("Aborted")
 			return
 		end
 	end
 
-	local mode = opts.mode or "vsplit"
+	local mode = opts.mode or "edit"
 	local cmd = ({
 		split = "split",
 		vsplit = "vsplit",
 		tabedit = "tabedit",
 		edit = "edit",
-	})[mode] or "vsplit"
+	})[mode] or "edit"
 
 	vim.cmd(cmd .. " " .. vim.fn.fnameescape(filepath))
-
-	-- local buf = vim.api.nvim_get_current_buf()
-	-- if vim.fn.filereadable(filepath) == 0 then
-	-- 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, H.get_template_content())
-	-- end
 end
 
 H.generate_filename = function()
 	local prefix = "Untitled-"
-	local files = vim.fn.glob(vim.fs.join(M.config.notes_dir, prefix .. "*"), true, true)
+	local files = vim.fn.glob(M.config.notes_dir .. "/" .. prefix .. "*" .. M.config.default_extension, true, true)
 
 	local existing_numbers = {}
 	for _, file in ipairs(files) do
@@ -121,18 +110,91 @@ H.generate_filename = function()
 	return string.format("%s%d.%s", prefix, next_number, M.config.default_extension)
 end
 
+M.push_notes = function()
+	H.ensure_setup()
+	H.ensure_git_repo()
+
+	H.git_add(M.config.notes_dir)
+	H.git_commit(M.config.notes_dir, "sync notes")
+	H.git_push(M.config.notes_dir)
+end
+
+M.pull_notes = function()
+	H.ensure_setup()
+	H.ensure_git_repo()
+
+	local pull_cmd = "git -C " .. M.config.notes_dir .. " pull --rebase 2>&1"
+	local output = vim.fn.system(pull_cmd)
+
+	if vim.v.shell_error ~= 0 then
+		H.error("Git pull --rebase failed, rebase aborted. Please sync manually.\n" .. output)
+	end
+end
+
 H.setup_config = function(config)
 	config = vim.tbl_deep_extend("force", H.default_config, config or {})
-	if not config.notes_dir or config.notes_dir == "" then
-		error("notes_dir must be set")
+	if config.notes_dir == nil or config.notes_dir == "" then
+		H.error("notes_dir must be set")
 	end
 	config.notes_dir = vim.fn.expand(config.notes_dir)
 
 	if vim.fn.isdirectory(config.notes_dir) == 0 then
-		vim.fn.mkdir(config.notes_dir, "p")
+		H.error("notes_dir must be exists")
 	end
 
 	return config
+end
+
+H.error = function(msg)
+	error("(notes.nvim) " .. msg, 0)
+end
+
+H.ensure_setup = function()
+	if not did_setup then
+		H.error("Please call setup() before using this plugin")
+	end
+end
+
+H.ensure_git = function()
+	if vim.fn.executable("git") == 0 then
+		H.error("Git is required to use this plugin")
+	end
+end
+
+H.is_git_repo = function(dir)
+	local cmd = "git -C " .. dir .. " remote get-url origin 2> /dev/null"
+	vim.fn.system(cmd)
+	return vim.v.shell_error == 0
+end
+
+H.ensure_git_repo = function()
+	if not H.is_git_repo(M.config.notes_dir) then
+		H.error("Not a git repository")
+	end
+end
+
+H.git_add = function(dir)
+	local add_cmd = "git -C " .. dir .. " add ."
+	vim.fn.system(add_cmd)
+	if vim.v.shell_error ~= 0 then
+		H.error("Git add failed")
+	end
+end
+
+H.git_commit = function(dir, message)
+	local commit_cmd = string.format("git -C %s commit -m %s", dir, vim.fn.shellescape(message))
+	vim.fn.system(commit_cmd)
+	if vim.v.shell_error ~= 0 then
+		H.error("Git commit failed")
+	end
+end
+
+H.git_push = function(dir)
+	local push_cmd = "git -C " .. dir .. " push 2>&1"
+	vim.fn.system(push_cmd)
+	if vim.v.shell_error ~= 0 then
+		H.error("Git push failed")
+	end
 end
 
 H.apply_config = function(config)
@@ -143,42 +205,16 @@ H.create_user_commands = function()
 	vim.api.nvim_create_user_command("NotesList", M.list_notes, {})
 	vim.api.nvim_create_user_command("NotesSearch", M.search_notes, {})
 	vim.api.nvim_create_user_command("NotesCreate", function(opts)
-		M.create_notes({ mode = opts.args })
+		M.create_note({ mode = opts.args })
 	end, {
 		nargs = "?",
 		complete = function()
 			return { "edit", "split", "vsplit", "tabedit" }
 		end,
 	})
+	-- notes pull and notes push
+	vim.api.nvim_create_user_command("NotesPull", M.pull_notes, {})
+	vim.api.nvim_create_user_command("NotesPush", M.push_notes, {})
 end
-
-H.set_keymap = function()
-	local keymaps = M.config.keymaps
-	vim.keymap.set("n", keymaps.create, M.create_notes, { noremap = true, silent = true, desc = "Create Notes" })
-	vim.keymap.set("n", keymaps.search, M.search_notes, { noremap = true, silent = true, desc = "Search Notes" })
-	vim.keymap.set("n", keymaps.list, M.list_notes, { noremap = true, silent = true, desc = "List Notes" })
-end
-
--- H.get_template_content = function()
--- 	if not M.config.template then
--- 		return {}
--- 	end
---
--- 	local content
--- 	if type(M.config.template) == "string" then
--- 		content = M.config.template
--- 	elseif type(M.config.template) == "table" and M.config.template.file then
--- 		local path = vim.fn.expand(M.config.template.file)
--- 		if vim.fn.filereadable(path) == 1 then
--- 			content = table.concat(vim.fn.readfile(path), "\n")
--- 		end
--- 	end
---
--- 	if content then
--- 		content = content:gsub("%%date%%", os.date(M.config.date_format))
--- 		return vim.split(content, "\n")
--- 	end
--- 	return {}
--- end
 
 return M
