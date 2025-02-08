@@ -32,7 +32,7 @@ end
 M.search_notes = function()
 	H.ensure_setup()
 	if pcall(require, "snacks.picker") then
-    require("snacks.picker").grep({ cwd = M.config.notes_dir })
+		require("snacks.picker").grep({ cwd = M.config.notes_dir })
 	else
 		vim.notify("snacks.picker is required to search notes", vim.log.levels.ERROR)
 	end
