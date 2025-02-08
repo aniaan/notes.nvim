@@ -31,9 +31,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
     { "<leader>nl", ":NotesList<CR>", desc = "List Notes" },
     { "<leader>npl", ":NotesPull<CR>", desc = "Pull Notes" },
     { "<leader>nph", ":NotesPush<CR>", desc = "Push Notes" },
-  },
-  dependencies = {
-    "ibhagwan/fzf-lua", -- Required for listing and searching
   }
 }
 ```
@@ -56,9 +53,9 @@ opts = {
 
 The plugin provides the following commands and keymaps (as defined in the example `lazy.nvim` configuration):
 
-- **`<leader>ns` or `:NotesSearch`**: Search for notes within your `notes_dir` using `fzf-lua`.
+- **`<leader>ns` or `:NotesSearch`**: Search for notes within your `notes_dir` using `snack.picker`.
 - **`<leader>nc` or `:NotesCreate`**: Create a new note. You will be prompted for a filename. If you enter a filename without an extension, the `default_extension` will be appended. If you leave the filename blank, a default filename will be generated (e.g., `Untitled-1.md`).
-- **`<leader>nl` or `:NotesList`**: List notes within your `notes_dir` using `fzf-lua`.
+- **`<leader>nl` or `:NotesList`**: List notes within your `notes_dir` using `snack.picker`.
 - **`<leader>npl` or `:NotesPull`**: Pull changes from the remote Git repository associated with your `notes_dir`. This performs a `git pull --rebase`.
 - **`<leader>nph` or `:NotesPush`**: Push changes to the remote Git repository associated with your `notes_dir`. This performs a `git add .`, `git commit -m "sync notes"`, and `git push`.
 

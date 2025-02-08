@@ -22,19 +22,19 @@ end
 
 M.list_notes = function()
 	H.ensure_setup()
-	if pcall(require, "fzf-lua") then
-		require("fzf-lua").files({ cwd = M.config.notes_dir })
+	if pcall(require, "snacks.picker") then
+		require("snacks.picker").files({ cwd = M.config.notes_dir, hidden = true })
 	else
-		vim.notify("fzf-lua.nvim is required to list notes", vim.log.levels.ERROR)
+		vim.notify("snacks.picker is required to list notes", vim.log.levels.ERROR)
 	end
 end
 
 M.search_notes = function()
 	H.ensure_setup()
-	if pcall(require, "fzf-lua") then
-		require("fzf-lua").live_grep({ cwd = M.config.notes_dir })
+	if pcall(require, "snacks.picker") then
+    require("snacks.picker").grep({ cwd = M.config.notes_dir })
 	else
-		vim.notify("fzf-lua.nvim is required to search notes", vim.log.levels.ERROR)
+		vim.notify("snacks.picker is required to search notes", vim.log.levels.ERROR)
 	end
 end
 
